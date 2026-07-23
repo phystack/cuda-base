@@ -149,8 +149,9 @@ jobs:
           CACHE_DIR="/opt/build-cache/cuda-base"
           mkdir -p "$CACHE_DIR"
 
-          # Create symlink to cache directory in build context
-          ln -sfn "$CACHE_DIR" ./downloads-cache
+          # NOTE: do NOT symlink the cache into the context — buildx sends the
+          # context without following symlinks, so COPY sees a dangling link.
+          # Real files are staged after the downloads (see "Stage download cache").
 
           echo "Using persistent cache at: $CACHE_DIR"
           echo "Current cache contents:"
@@ -234,7 +235,10 @@ jobs:
           echo ""
           echo "Total cache size: $(du -sh "$CACHE_DIR" | cut -f1)"
           echo ""
-          echo "=== Symlink verification ==="
+          echo "=== Stage download cache into build context ==="
+          rm -rf ./downloads-cache
+          mkdir -p ./downloads-cache
+          cp -a "$CACHE_DIR"/. ./downloads-cache/
           ls -la ./downloads-cache
 
       - name: Set up Docker Buildx
