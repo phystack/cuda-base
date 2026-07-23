@@ -7,21 +7,26 @@ Multi-architecture CUDA Docker base image for Phystack AI inference services.
 
 ## Overview
 
-cuda-base provides a production-ready Docker image with CUDA 12.9, TensorRT 10.12, cuDNN 9, and a CUDA-enabled FFmpeg build. It serves as the foundation for all Phystack AI services that require GPU-accelerated inference or video processing. The image supports both AMD64 (Intel/AMD) and ARM64 (NVIDIA Jetson) architectures.
+cuda-base provides a production-ready Docker image with CUDA, TensorRT, cuDNN, and CUDA-enabled video processing. It serves as the foundation for all Phystack AI services that require GPU-accelerated inference or video processing, and it publishes a single multi-arch manifest covering both AMD64 (Intel/AMD) and ARM64 (NVIDIA Jetson) architectures.
+
+**The two architectures use different NVIDIA bases and therefore different CUDA/OS versions.** On Jetson, the GPU driver (`libcuda`) is injected at runtime from the host L4T stack, so the image's CUDA userland must match that driver's ceiling. A generic `nvidia/cuda:12.9` (desktop) userland cannot initialize CUDA on a Jetson whose L4T r36 driver caps at CUDA 12.6 (`CUDA_ERROR_SYSTEM_DRIVER_MISMATCH`). The arm64 variant is therefore built on the slim `nvcr.io/nvidia/l4t-cuda:12.6.11-runtime` (~1.2 GB, ~4× smaller than the full `l4t-jetpack`), which ships the CUDA 12.6 runtime + math libs baked in. **cuDNN and TensorRT are not bundled** in the arm64 variant — a downstream app that needs them installs from the NVIDIA Jetson apt repos (`repo.download.nvidia.com/jetson/{t234,common} r36.4`).
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Base OS | Ubuntu 24.04 |
-| CUDA | 12.9.0 runtime |
-| TensorRT | 10.12.0.36 |
-| cuDNN | 9 |
-| FFmpeg | Custom build with NVENC/NVDEC/cuvid |
-| Python | 3.12 (system default) |
-| Web framework | FastAPI, Uvicorn |
-| CI/CD | GitHub Actions (self-hosted runner) |
-| Registry | Docker Hub (`phygrid/cuda-base`) |
+| Layer | amd64 | arm64 (Jetson) |
+|-------|-------|----------------|
+| Base image | `nvidia/cuda:12.9.0-runtime-ubuntu24.04` | `nvcr.io/nvidia/l4t-cuda:12.6.11-runtime` |
+| Base OS | Ubuntu 24.04 | Ubuntu 22.04 (L4T r36 / JetPack 6) |
+| CUDA | 12.9.0 runtime | 12.6 runtime + math libs (baked in) |
+| TensorRT | 10.12.0.36 (downloaded) | not bundled (add via Jetson apt) |
+| cuDNN | 9 | not bundled (add via Jetson apt) |
+| FFmpeg | Custom build with NVENC/NVDEC/cuvid | PyAV (`av`) with bundled ffmpeg |
+| Python | 3.12 (system default) | 3.10 (system default) |
+| Web framework | FastAPI, Uvicorn | FastAPI, Uvicorn |
+| CI/CD | GitHub Actions (self-hosted runner) | GitHub Actions (self-hosted runner) |
+| Registry | Docker Hub (`phygrid/cuda-base`) | Docker Hub (`phygrid/cuda-base`) |
+
+> Downstream apps that pin OS/Python specifics should account for this per-arch difference (Ubuntu 24.04 / Python 3.12 on amd64 vs Ubuntu 22.04 / Python 3.10 on arm64), and note that cuDNN/TensorRT are only baked into the amd64 image.
 
 ## Prerequisites
 
