@@ -1,6 +1,6 @@
 # Docker Build and Deploy Workflow
 
-This repository uses GitHub Actions to automatically build and deploy the `phygrid/cuda-base` Docker image to Docker Hub with automatic version management.
+This repository uses GitHub Actions to automatically build and deploy the `phystack/cuda-base` Docker image to Docker Hub with automatic version management.
 
 ## Setup Requirements
 
@@ -78,8 +78,8 @@ Each successful build creates:
 - `linux/arm64` (ARM/Apple Silicon)
 
 ### Docker Hub Tags
-- `phygrid/cuda-base:v1.0.0` (specific version)
-- `phygrid/cuda-base:latest` (always latest version)
+- `phystack/cuda-base:v1.0.0` (specific version)
+- `phystack/cuda-base:latest` (always latest version)
 
 ## Workflow Features
 
@@ -140,8 +140,8 @@ cat VERSION
 git tag -l
 
 # Check Docker Hub
-docker pull phygrid/cuda-base:latest
-docker images phygrid/cuda-base
+docker pull phystack/cuda-base:latest
+docker images phystack/cuda-base
 ```
 
 ### Manual Deployment
@@ -156,7 +156,7 @@ docker images phygrid/cuda-base
 
 **Version Already Exists**
 ```
-Error: Docker image phygrid/cuda-base:v1.0.0 already exists on Docker Hub
+Error: Docker image phystack/cuda-base:v1.0.0 already exists on Docker Hub
 ```
 **Solution**: Use a new version number
 

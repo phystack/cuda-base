@@ -3,7 +3,7 @@
 Multi-architecture CUDA Docker base image for Phystack AI inference services.
 
 [![Build and Deploy](https://github.com/phystack/cuda-base/actions/workflows/docker-build-deploy.yml/badge.svg)](https://github.com/phystack/cuda-base/actions/workflows/docker-build-deploy.yml)
-[![Docker Hub](https://img.shields.io/docker/pulls/phygrid/cuda-base.svg?style=flat-square)](https://hub.docker.com/r/phygrid/cuda-base)
+[![Docker Hub](https://img.shields.io/docker/pulls/phystack/cuda-base.svg?style=flat-square)](https://hub.docker.com/r/phystack/cuda-base)
 
 ## Overview
 
@@ -24,7 +24,7 @@ cuda-base provides a production-ready Docker image with CUDA, TensorRT, cuDNN, a
 | Python | 3.12 (system default) | 3.10 (system default) |
 | Web framework | FastAPI, Uvicorn | FastAPI, Uvicorn |
 | CI/CD | GitHub Actions (self-hosted runner) | GitHub Actions (self-hosted runner) |
-| Registry | Docker Hub (`phygrid/cuda-base`) | Docker Hub (`phygrid/cuda-base`) |
+| Registry | Docker Hub (`phystack/cuda-base`) | Docker Hub (`phystack/cuda-base`) |
 
 > Downstream apps that pin OS/Python specifics should account for this per-arch difference (Ubuntu 24.04 / Python 3.12 on amd64 vs Ubuntu 22.04 / Python 3.10 on arm64), and note that cuDNN/TensorRT are only baked into the amd64 image.
 
@@ -37,13 +37,13 @@ cuda-base provides a production-ready Docker image with CUDA, TensorRT, cuDNN, a
 ## Installation
 
 ```bash
-docker pull phygrid/cuda-base:latest
+docker pull phystack/cuda-base:latest
 ```
 
 Specific version:
 
 ```bash
-docker pull phygrid/cuda-base:v1.0.51
+docker pull phystack/cuda-base:v1.0.51
 ```
 
 Available architectures: `linux/amd64`, `linux/arm64`.
@@ -53,7 +53,7 @@ Available architectures: `linux/amd64`, `linux/arm64`.
 ### As a base image
 
 ```dockerfile
-FROM phygrid/cuda-base:latest
+FROM phystack/cuda-base:latest
 
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
@@ -68,10 +68,10 @@ The image pre-installs FastAPI, Uvicorn, Pydantic, NumPy, Pillow, and Requests. 
 
 ```bash
 # AMD64 host
-docker run -d --gpus all -p 8000:8000 phygrid/cuda-base:latest
+docker run -d --gpus all -p 8000:8000 phystack/cuda-base:latest
 
 # NVIDIA Jetson (ARM64)
-docker run -d --runtime nvidia --gpus all -p 8000:8000 phygrid/cuda-base:latest
+docker run -d --runtime nvidia --gpus all -p 8000:8000 phystack/cuda-base:latest
 ```
 
 ### Pre-created directories
@@ -81,7 +81,7 @@ The image includes `/app/cache` owned by the non-root `appuser`. Downstream imag
 ### Health check
 
 ```bash
-docker run --rm phygrid/cuda-base:latest python /app/health_check.py
+docker run --rm phystack/cuda-base:latest python /app/health_check.py
 ```
 
 Verifies Python, CUDA, TensorRT, FFmpeg, and core Python packages.
@@ -115,7 +115,7 @@ These are baked into the image and apply to all downstream containers:
 ```bash
 git clone git@github.com:phystack/cuda-base.git
 cd cuda-base
-docker buildx build --platform linux/amd64,linux/arm64 -t phygrid/cuda-base:dev .
+docker buildx build --platform linux/amd64,linux/arm64 -t phystack/cuda-base:dev .
 ```
 
 The build downloads TensorRT tarballs and FFmpeg source during the first run. On the self-hosted runner a persistent cache at `/opt/build-cache/cuda-base` avoids repeated downloads.
@@ -134,5 +134,5 @@ To bump the minor or major version, edit the `VERSION` file manually before push
 ## Related Documentation
 
 - [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md) -- versioning, triggers, and troubleshooting
-- [Docker Hub: phygrid/cuda-base](https://hub.docker.com/r/phygrid/cuda-base)
+- [Docker Hub: phystack/cuda-base](https://hub.docker.com/r/phystack/cuda-base)
 - [LICENSE](LICENSE) -- MIT
