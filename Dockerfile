@@ -14,7 +14,7 @@ ARG TARGETARCH
 ARG TARGETVARIANT
 
 # ====== BUILD STAGE: TensorRT Download & Extract ======
-FROM nvidia/cuda:12.9.0-runtime-ubuntu24.04 AS tensorrt-builder
+FROM nvcr.io/nvidia/cuda:12.9.0-runtime-ubuntu24.04 AS tensorrt-builder
 
 # Re-declare args for this stage
 ARG TARGETARCH
@@ -86,7 +86,7 @@ RUN set -ex && \
     fi
 
 # ====== STAGE: FFmpeg Builder with CUDA Support ======
-FROM nvidia/cuda:12.9.0-devel-ubuntu24.04 AS ffmpeg-builder
+FROM nvcr.io/nvidia/cuda:12.9.0-devel-ubuntu24.04 AS ffmpeg-builder
 
 # Accept build arg for downloads directory
 ARG DOWNLOADS_DIR=./downloads-cache
@@ -229,7 +229,7 @@ RUN set -ex && \
 # the end of this file). The generic nvidia/cuda:12.9 image is a desktop/server
 # CUDA userland and CANNOT initialize CUDA on a Jetson, whose L4T driver caps at
 # CUDA 12.6 — the arm64 build uses the l4t-cuda stage below instead.
-FROM nvidia/cuda:12.9.0-runtime-ubuntu24.04 AS runtime-amd64
+FROM nvcr.io/nvidia/cuda:12.9.0-runtime-ubuntu24.04 AS runtime-amd64
 
 WORKDIR /app
 
@@ -438,7 +438,7 @@ CMD ["python", "/app/health_check.py"]
 
 # Optimized labels
 LABEL maintainer="Phygrid"
-LABEL base="nvidia/cuda:12.9.0-runtime-ubuntu24.04"
+LABEL base="nvcr.io/nvidia/cuda:12.9.0-runtime-ubuntu24.04"
 LABEL tensorrt.version="${TENSORRT_VERSION}"
 LABEL description="Minimal CUDA base with TensorRT runtime for AI inference (multi-stage optimized)"
 LABEL architecture="multi-arch"
