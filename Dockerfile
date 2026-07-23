@@ -1,7 +1,11 @@
+# check=skip=InvalidBaseImagePlatform
 # Phygrid CUDA - Common Base Image
 # Multi-stage build to minimize final image size
-# Uses NVIDIA CUDA 12.9 cuDNN runtime + TensorRT runtime libraries only
-# Supports both Intel (x64) and ARM architectures
+# Per-arch runtime bases (selected at the end via FROM runtime-${TARGETARCH}):
+#   amd64 -> nvidia/cuda:12.9.0-runtime-ubuntu24.04  (+ TensorRT/FFmpeg/PyAV build)
+#   arm64 -> nvcr.io/nvidia/l4t-cuda:12.6.11-runtime (Jetson / CUDA 12.6 runtime)
+# The InvalidBaseImagePlatform check is skipped: for a single-platform build the
+# non-selected arch stage is never built, but buildx still loads its base metadata.
 
 # Multi-stage build args for proper cross-platform support
 ARG TARGETPLATFORM
@@ -220,8 +224,12 @@ RUN set -ex && \
     echo "=== PyAV wheel build complete ===" && \
     ls -la /wheels/
 
-# ====== FINAL STAGE: Runtime Image ======  
-FROM nvidia/cuda:12.9.0-runtime-ubuntu24.04
+# ====== RUNTIME STAGE (amd64): CUDA 12.9 desktop/server userland ======
+# NOTE: this stage is ONLY selected for linux/amd64 (see the arch selector at
+# the end of this file). The generic nvidia/cuda:12.9 image is a desktop/server
+# CUDA userland and CANNOT initialize CUDA on a Jetson, whose L4T driver caps at
+# CUDA 12.6 — the arm64 build uses the l4t-cuda stage below instead.
+FROM nvidia/cuda:12.9.0-runtime-ubuntu24.04 AS runtime-amd64
 
 WORKDIR /app
 
@@ -435,3 +443,118 @@ LABEL tensorrt.version="${TENSORRT_VERSION}"
 LABEL description="Minimal CUDA base with TensorRT runtime for AI inference (multi-stage optimized)"
 LABEL architecture="multi-arch"
 LABEL build.stage="optimized"
+
+# ====== RUNTIME STAGE (arm64 / Jetson): L4T r36 = JetPack 6, CUDA 12.6 ======
+# On Jetson, libcuda/the GPU driver is injected at runtime from the host L4T
+# stack by the nvidia container runtime; the image's CUDA userland must match
+# that driver's ceiling (r36.4 -> CUDA 12.6). We use the slim l4t-cuda runtime
+# image (~1.2 GB, ~4x smaller than the full l4t-jetpack) which ships the CUDA
+# 12.6 runtime + math libs baked in.
+# NOTE: cuDNN and TensorRT are NOT bundled in this base (unlike l4t-jetpack). A
+# downstream app that needs them installs from the NVIDIA Jetson apt repos
+# (repo.download.nvidia.com/jetson/{t234,common} r36.4). Hardware FFmpeg is also
+# not bundled; PyAV (av) is pip-installed with its own ffmpeg for video I/O.
+FROM nvcr.io/nvidia/l4t-cuda:12.6.11-runtime AS runtime-arm64
+
+WORKDIR /app
+
+ARG TENSORRT_VERSION=10.12.0.36
+ENV TENSORRT_VERSION=${TENSORRT_VERSION}
+
+# Runtime userland to mirror the amd64 image (python + common GL/OpenCV libs).
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    python3-minimal \
+    python3-pip \
+    python3-dev \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1 \
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Ubuntu 22.04 (jammy) ships pip 22.x which lacks --break-system-packages and is
+# not PEP-668 "externally managed", so upgrade pip then install without that flag.
+RUN python -m pip install --no-cache-dir --upgrade pip && \
+    python -m pip install --no-cache-dir \
+        fastapi \
+        "uvicorn[standard]" \
+        pydantic \
+        numpy \
+        pillow \
+        requests \
+        av
+
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# CUDA env is provided by the l4t-cuda base; do not override library paths.
+ENV CUDA_HOME="/usr/local/cuda"
+
+RUN mkdir -p /app/cache
+
+# Non-root user (parity with amd64 stage)
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser && \
+    chown -R appuser:appuser /app
+
+# Health check (arm64 / Jetson): verifies Python userland + CUDA availability.
+COPY --chown=appuser:appuser <<'PY' /app/health_check.py
+#!/usr/bin/env python3
+import ctypes
+import os
+import platform
+import sys
+
+
+def check_health():
+    print("=== Phygrid CUDA Base Health Check (Jetson / L4T arm64) ===")
+    print(f"Architecture: {platform.machine()}")
+    print(f"Python version: {sys.version.split()[0]}")
+
+    # libcuda is injected by the nvidia container runtime at run time.
+    try:
+        ctypes.CDLL("libcuda.so.1", mode=ctypes.RTLD_GLOBAL)
+        print("libcuda.so.1 loaded (nvidia runtime present)")
+    except OSError as exc:
+        print(f"libcuda.so.1 not loadable (run with --runtime nvidia): {exc}")
+
+    try:
+        import tensorrt
+        print(f"TensorRT Python version: {tensorrt.__version__}")
+    except ImportError:
+        print("TensorRT not bundled in this base (expected) — add via Jetson apt if needed")
+
+    try:
+        import numpy, requests, fastapi, uvicorn, pydantic, PIL, av  # noqa: F401
+        print("Essential Python packages installed")
+    except ImportError as exc:
+        print(f"Missing package: {exc}")
+        return 1
+
+    print("Base image health check passed")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(check_health())
+PY
+
+RUN chmod +x /app/health_check.py
+
+USER appuser
+EXPOSE 8000
+CMD ["python", "/app/health_check.py"]
+
+LABEL maintainer="Phygrid"
+LABEL base="nvcr.io/nvidia/l4t-cuda:12.6.11-runtime"
+LABEL description="CUDA base for Jetson (L4T r36 / JetPack 6 / CUDA 12.6 runtime)"
+LABEL architecture="arm64"
+
+# ====== ARCH SELECTOR ======
+# buildx sets TARGETARCH per platform (amd64|arm64). This picks the matching
+# runtime stage so `--platform linux/amd64,linux/arm64` yields one manifest
+# whose arm64 entry is the Jetson-compatible image. This MUST remain the last
+# stage so it is the default build target.
+FROM runtime-${TARGETARCH} AS final
