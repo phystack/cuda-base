@@ -119,7 +119,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && rm -rf /var/lib/apt/lists/*
 
 # Download NVIDIA Video Codec SDK headers (required for NVENC/NVDEC)
-RUN git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git \
+# Cloned from the GitHub mirror: git.videolan.org drops connections often
+RUN git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git \
     && cd nv-codec-headers \
     && make install \
     && cd .. && rm -rf nv-codec-headers
